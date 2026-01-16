@@ -3,6 +3,18 @@ import { createDataProvider, CreateDataProviderOptions } from "@refinedev/rest";
 import { CreateResponse, GetOneResponse, ListResponse } from "@/types";
 import { BACKEND_BASE_URL } from "@/constants";
 
+
+// Validate BACKEND_BASE_URL before creating the data provider
+if (!BACKEND_BASE_URL || BACKEND_BASE_URL.trim() === "") {
+  const errorMessage = "BACKEND_BASE_URL is not defined or empty. Please check your environment variables.";
+  
+  // Log detailed error with guidance
+  console.error("❌", errorMessage);
+  console.error("📋 Expected:", "VITE_BACKEND_BASE_URL environment variable to be set");
+  console.error("🔍 Current value:", import.meta.env.VITE_BACKEND_BASE_URL || "(undefined)");
+  console.error("💡 Solution:", "Add VITE_BACKEND_BASE_URL to your .env file");
+}
+
 const options: CreateDataProviderOptions = {
   getList: {
     getEndpoint: ({ resource }) => resource,
@@ -52,7 +64,7 @@ const options: CreateDataProviderOptions = {
     },
 
     mapResponse: async (response) => {
-      const payload: ListResponse = await response.json();
+      const payload: ListResponse = await response.clone().json();
       return payload.data ?? [];
     },
 
