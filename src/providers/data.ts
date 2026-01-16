@@ -1,56 +1,100 @@
-import {
-  DataProvider,
-  BaseRecord,
-  GetListParams,
-  GetListResponse,
-} from "@refinedev/core";
-import { MOCK_SUBJECTS } from "./mock-subjects";
+import { createDataProvider, CreateDataProviderOptions } from "@refinedev/rest";
 
-export const dataProvider: DataProvider = {
-  getList: async <TData extends BaseRecord = BaseRecord>({
-    resource,
-  }: GetListParams): Promise<GetListResponse<TData>> => {
-    // Implement your logic to fetch a list of resources
+import { CreateResponse, GetOneResponse, ListResponse } from "@/types";
+import { BACKEND_BASE_URL } from "@/constants";
 
-    if (resource !== "subjects") {
-      return { data: [] as TData[], total: 0 };
-    }
-    return {
-      data: MOCK_SUBJECTS as unknown as TData[],
-      total: MOCK_SUBJECTS.length,
-    };
+
+// Validate BACKEND_BASE_URL before creating the data provider
+if (!BACKEND_BASE_URL || BACKEND_BASE_URL.trim() === "") {
+  const errorMessage = "BACKEND_BASE_URL is not defined or empty. Please check your environment variables.";
+  
+  // Log detailed error with guidance
+  console.error("❌", errorMessage);
+  console.error("📋 Expected:", "VITE_BACKEND_BASE_URL environment variable to be set");
+  console.error("🔍 Current value:", import.meta.env.VITE_BACKEND_BASE_URL || "(undefined)");
+  console.error("💡 Solution:", "Add VITE_BACKEND_BASE_URL to your .env file");
+}
+
+const options: CreateDataProviderOptions = {
+  getList: {
+    getEndpoint: ({ resource }) => resource,
+
+    buildQueryParams: async ({ resource, pagination, filters }) => {
+      const params: Record<string, string | number> = {};
+
+      if (pagination?.mode !== "off") {
+        const page = pagination?.currentPage ?? 1;
+        const pageSize = pagination?.pageSize ?? 10;
+
+        params.page = page;
+        params.limit = pageSize;
+      }
+
+      filters?.forEach((filter) => {
+        const field = "field" in filter ? filter.field : "";
+        const value = String(filter.value);
+
+        if (field === "role") {
+          params.role = value;
+        }
+
+        if (resource === "departments") {
+          if (field === "name" || field === "code") params.search = value;
+        }
+
+        if (resource === "users") {
+          if (field === "search" || field === "name" || field === "email") {
+            params.search = value;
+          }
+        }
+
+        if (resource === "subjects") {
+          if (field === "department") params.department = value;
+          if (field === "name" || field === "code") params.search = value;
+        }
+
+        if (resource === "classes") {
+          if (field === "name") params.search = value;
+          if (field === "subject") params.subject = value;
+          if (field === "teacher") params.teacher = value;
+        }
+      });
+
+      return params;
+    },
+
+    mapResponse: async (response) => {
+      const payload: ListResponse = await response.clone().json();
+      return payload.data ?? [];
+    },
+
+    getTotalCount: async (response) => {
+      const payload: ListResponse = await response.json();
+      return payload.pagination?.total ?? payload.data?.length ?? 0;
+    },
   },
 
-  getOne: async <TData extends BaseRecord = BaseRecord>(
-    params: any
-  ): Promise<{ data: TData }> => {
-    // Implement your logic to fetch a single resource
-    throw new Error("Not implemented");
+  create: {
+    getEndpoint: ({ resource }) => resource,
+
+    buildBodyParams: async ({ variables }) => variables,
+
+    mapResponse: async (response) => {
+      const json: CreateResponse = await response.json();
+      return json.data ?? {};
+    },
   },
 
-  create: async <TData extends BaseRecord = BaseRecord>(
-    params: any
-  ): Promise<{ data: TData }> => {
-    // Implement your logic to create a resource
-    throw new Error("Not implemented");
-  },
+  getOne: {
+    getEndpoint: ({ resource, id }) => `${resource}/${id}`,
 
-  update: async <TData extends BaseRecord = BaseRecord>(
-    params: any
-  ): Promise<{ data: TData }> => {
-    // Implement your logic to update a resource
-    throw new Error("Not implemented");
-  },
-
-  deleteOne: async <TData extends BaseRecord = BaseRecord>(
-    params: any
-  ): Promise<{ data: TData }> => {
-    // Implement your logic to delete a resource
-    throw new Error("Not implemented");
-  },
-
-  getApiUrl: (path?: string) => {
-    // Return base API URL or combine with path
-    return path ?? "";
+    mapResponse: async (response) => {
+      const json: GetOneResponse = await response.json();
+      return json.data ?? {};
+    },
   },
 };
+
+const { dataProvider } = createDataProvider(BACKEND_BASE_URL, options);
+
+export { dataProvider };
